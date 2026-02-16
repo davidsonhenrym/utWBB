@@ -1455,6 +1455,14 @@
                         }
                         player[header.trim()] = value;
                     });
+                    // Force all stat fields to be numbers (handles "N/A", "--", etc.)
+                    const numericFields = ['PPG','FG%','3P%','FT%','APG','TOPG','A/TO','ORB/G','DRB/G','RPG',
+                        'BPG','SPG','eFG%','+/-','OR%','DR%','WS','ORtg','DRtg','OWS','DWS',
+                        'WS/40','OBPM','DBPM','BPM','PER','MPG'];
+                    numericFields.forEach(f => {
+                        const n = parseFloat(player[f]);
+                        player[f] = isNaN(n) ? 0 : n;
+                    });
                     if (player.Player) {
                         jsonData.push(player);
                     }
@@ -2017,6 +2025,8 @@
                 return;
             }
 
+            const sn = (v, d) => { const n = parseFloat(v); return isNaN(n) ? 0 : parseFloat(n.toFixed(d !== undefined ? d : 1)); };
+
             const exportData = scoredData.map((player, index) => ({
                 Rank: index + 1,
                 Player: player.Player,
@@ -2024,55 +2034,77 @@
                 Conference: player.Conference || 'N/A',
                 Position: player.position_category,
                 Height: player.Height,
-                Score: player.total_score.toFixed(2),
-                Valuation: player.valuation.toFixed(2),
-                'Conf Multiplier': (player.conference_multiplier || 1.0).toFixed(2),
-                PPG: (player.PPG || 0).toFixed(1),
-                'FG%': ((player['FG%'] || 0) * 100).toFixed(1),
-                '3P%': ((player['3P%'] || 0) * 100).toFixed(1),
-                'FT%': ((player['FT%'] || 0) * 100).toFixed(1),
-                APG: (player.APG || 0).toFixed(1),
-                TOPG: (player.TOPG || 0).toFixed(1),
-                'A/TO': (player['A/TO'] || 0).toFixed(2),
-                'ORB/G': (player['ORB/G'] || 0).toFixed(1),
-                'DRB/G': (player['DRB/G'] || 0).toFixed(1),
-                BPG: (player.BPG || 0).toFixed(1),
-                SPG: (player.SPG || 0).toFixed(1),
-                'eFG%': ((player['eFG%'] || 0) * 100).toFixed(1),
-                '+/-': (player['+/-'] || 0).toFixed(1),
-                'OR%': ((player['OR%'] || 0)).toFixed(1),
-                'DR%': ((player['DR%'] || 0)).toFixed(1),
-                WS: (player.WS || 0).toFixed(2),
-                ORtg: (player.ORtg || 0).toFixed(1),
-                DRtg: (player.DRtg || 0).toFixed(1),
-                OWS: (player.OWS || 0).toFixed(2),
-                DWS: (player.DWS || 0).toFixed(2),
-                'WS/40': (player['WS/40'] || 0).toFixed(3),
-                OBPM: (player.OBPM || 0).toFixed(1),
-                DBPM: (player.DBPM || 0).toFixed(1),
-                BPM: (player.BPM || 0).toFixed(1),
-                PER: (player.PER || 0).toFixed(1)
+                Score: sn(player.total_score, 2),
+                Valuation: sn(player.valuation, 2),
+                'Conf Multiplier': sn(player.conference_multiplier || 1.0, 2),
+                PPG: sn(player.PPG),
+                'FG%': sn((player['FG%'] || 0) * 100),
+                '3P%': sn((player['3P%'] || 0) * 100),
+                'FT%': sn((player['FT%'] || 0) * 100),
+                APG: sn(player.APG),
+                TOPG: sn(player.TOPG),
+                'A/TO': sn(player['A/TO'], 2),
+                'ORB/G': sn(player['ORB/G']),
+                'DRB/G': sn(player['DRB/G']),
+                BPG: sn(player.BPG),
+                SPG: sn(player.SPG),
+                'eFG%': sn((player['eFG%'] || 0) * 100),
+                '+/-': sn(player['+/-']),
+                'OR%': sn(player['OR%']),
+                'DR%': sn(player['DR%']),
+                WS: sn(player.WS, 2),
+                ORtg: sn(player.ORtg),
+                DRtg: sn(player.DRtg),
+                OWS: sn(player.OWS, 2),
+                DWS: sn(player.DWS, 2),
+                'WS/40': sn(player['WS/40'], 3),
+                OBPM: sn(player.OBPM),
+                DBPM: sn(player.DBPM),
+                BPM: sn(player.BPM),
+                PER: sn(player.PER)
             }));
-
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Player Evaluations');
 
             const teamExportData = teamData.map(team => ({
                 Team: team.name,
                 Conference: team.conference,
-                'Total Valuation': team.totalValuation.toFixed(2),
-                'Avg Score': team.avgScore.toFixed(2),
+                'Total Valuation': sn(team.totalValuation, 2),
+                'Avg Score': sn(team.avgScore, 2),
                 'Total Players': team.players.length,
                 Guards: team.guards,
                 Wings: team.wings,
                 'Forwards/Centers': team.forwards
             }));
 
-            const wsTeams = XLSX.utils.json_to_sheet(teamExportData);
-            XLSX.utils.book_append_sheet(wb, wsTeams, 'Team Valuations');
+            // Try XLSX first, fall back to CSV
+            if (typeof XLSX !== 'undefined') {
+                try {
+                    const ws = XLSX.utils.json_to_sheet(exportData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Player Evaluations');
+                    const wsTeams = XLSX.utils.json_to_sheet(teamExportData);
+                    XLSX.utils.book_append_sheet(wb, wsTeams, 'Team Valuations');
+                    XLSX.writeFile(wb, `wbb_player_evaluations_${new Date().toISOString().split('T')[0]}.xlsx`);
+                    return;
+                } catch (e) {
+                    console.warn('XLSX export failed, falling back to CSV:', e);
+                }
+            }
 
-            XLSX.writeFile(wb, `wbb_player_evaluations_${new Date().toISOString().split('T')[0]}.xlsx`);
+            // CSV fallback
+            const headers = Object.keys(exportData[0]);
+            const csvRows = [headers.join(',')];
+            exportData.forEach(row => {
+                csvRows.push(headers.map(h => {
+                    const val = row[h] !== undefined ? String(row[h]) : '';
+                    return val.includes(',') || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val;
+                }).join(','));
+            });
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `wbb_player_evaluations_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
         }
 
         function showPlayerDetails(player) {
