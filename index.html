@@ -990,6 +990,14 @@
                     </div>
 
                     <div id="playersTab" class="tab-content active">
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px; padding: 12px 15px; background: rgba(255, 107, 157, 0.06); border: 1px solid rgba(255, 107, 157, 0.25); border-radius: 8px; flex-wrap: wrap;">
+                            <span style="font-size: 0.7rem; font-family: 'IBM Plex Mono', monospace; color: var(--accent-primary); white-space: nowrap; font-weight: 700; letter-spacing: 0.08em;">ARCHETYPE SEARCH</span>
+                            <input type="text" id="archetypeSearch" class="filter-input" placeholder="e.g., 'shooter from Horizon that is affordable'" style="flex: 1; min-width: 220px;"
+                                onkeydown="if(event.key==='Enter') parseAndApplyArchetypeSearch()">
+                            <button onclick="parseAndApplyArchetypeSearch()" style="flex: none; padding: 10px 18px; font-size: 0.8rem; white-space: nowrap;">Find Players</button>
+                            <button onclick="clearArchetypeSearch()" class="secondary" style="flex: none; padding: 10px 14px; font-size: 0.8rem;">Clear</button>
+                        </div>
+
                         <div class="filter-controls">
                             <input type="text" class="filter-input" id="searchInput" placeholder="Search players...">
                             <select id="conferenceFilter">
@@ -1030,6 +1038,7 @@
                                             <th class="sortable" data-sort="rpg">RPG</th>
                                             <th class="sortable" data-sort="bpm">BPM</th>
                                             <th class="sortable" data-sort="efg">eFG%</th>
+                                            <th class="sortable" data-sort="three_pa_g">3PA/G</th>
                                         </tr>
                                     </thead>
                                     <tbody id="resultsBody"></tbody>
@@ -1458,11 +1467,16 @@
                     // Force all stat fields to be numbers (handles "N/A", "--", etc.)
                     const numericFields = ['PPG','FG%','3P%','FT%','APG','TOPG','A/TO','ORB/G','DRB/G','RPG',
                         'BPG','SPG','eFG%','+/-','OR%','DR%','WS','ORtg','DRtg','OWS','DWS',
-                        'WS/40','OBPM','DBPM','BPM','PER','MPG'];
+                        'WS/40','OBPM','DBPM','BPM','PER','MPG','3PA','G','3PA/G'];
                     numericFields.forEach(f => {
                         const n = parseFloat(player[f]);
                         player[f] = isNaN(n) ? 0 : n;
                     });
+                    // Compute 3PA/G if not already in sheet
+                    if (!player['3PA/G'] || player['3PA/G'] === 0) {
+                        const games = player['G'] > 0 ? player['G'] : 0;
+                        player['3PA/G'] = games > 0 ? parseFloat((player['3PA'] / games).toFixed(1)) : 0;
+                    }
                     if (player.Player) {
                         jsonData.push(player);
                     }
@@ -2011,6 +2025,7 @@
                     <td>${(player.RPG || 0).toFixed(1)}</td>
                     <td>${(player.BPM || 0).toFixed(1)}</td>
                     <td>${((player['eFG%'] || 0) * 100).toFixed(1)}%</td>
+                    <td>${(player['3PA/G'] || 0).toFixed(1)}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -2042,6 +2057,7 @@
                     case 'rpg': aVal = a.RPG; bVal = b.RPG; break;
                     case 'bpm': aVal = a.BPM; bVal = b.BPM; break;
                     case 'efg': aVal = a['eFG%']; bVal = b['eFG%']; break;
+                    case 'three_pa_g': aVal = a['3PA/G'] || 0; bVal = b['3PA/G'] || 0; break;
                 }
 
                 if (typeof aVal === 'string') {
@@ -2103,6 +2119,7 @@
                 PPG: sn(player.PPG),
                 'FG%': sn((player['FG%'] || 0) * 100),
                 '3P%': sn((player['3P%'] || 0) * 100),
+                '3PA/G': sn(player['3PA/G'], 1),
                 'FT%': sn((player['FT%'] || 0) * 100),
                 APG: sn(player.APG),
                 TOPG: sn(player.TOPG),
@@ -2200,7 +2217,7 @@
             const statMapping = {
                 ppg: { label: 'Points Per Game', value: player.PPG, format: (v) => v.toFixed(1) },
                 fg_pct: { label: 'Field Goal %', value: player['FG%'], format: (v) => (v * 100).toFixed(1) + '%' },
-                three_pct: { label: '3-Point %', value: player['3P%'], format: (v) => (v * 100).toFixed(1) + '%' },
+                three_pct: { label: '3-Point % (3PA/G)', value: player['3P%'], format: (v) => `${(v * 100).toFixed(1)}% — ${(player['3PA/G'] || 0).toFixed(1)} att/g` },
                 ft_pct: { label: 'Free Throw %', value: player['FT%'], format: (v) => (v * 100).toFixed(1) + '%' },
                 apg: { label: 'Assists Per Game', value: player.APG, format: (v) => v.toFixed(1) },
                 topg: { label: 'Turnovers Per Game', value: player.TOPG, format: (v) => v.toFixed(1) },
@@ -2231,7 +2248,7 @@
                 const normalizedScore = player.component_scores[key] || 0;
                 const rawValue = stat.value || 0;
 
-                if (weight > 0) {
+                if (weight > 0 || key === 'three_pct') {
                     breakdownHTML += `
                         <div class="stat-breakdown-item">
                             <div class="stat-breakdown-header">
@@ -2276,6 +2293,150 @@
                 closePlayerModal();
             }
         });
+
+        function clearArchetypeSearch() {
+            document.getElementById('archetypeSearch').value = '';
+            renderTable(scoredData);
+        }
+
+        function parseAndApplyArchetypeSearch() {
+            const raw = document.getElementById('archetypeSearch').value.toLowerCase().trim();
+            if (!raw) { renderTable(scoredData); return; }
+
+            let filtered = [...scoredData];
+
+            // ── Conference detection ──────────────────────────────────────────
+            const confKeywords = {
+                'horizon league': 'Horizon', 'horizon': 'Horizon',
+                'big ten': 'Big Ten', 'big 10': 'Big Ten',
+                'sec': 'SEC', 'southeastern': 'SEC',
+                'acc': 'ACC', 'atlantic coast': 'ACC',
+                'big 12': 'Big 12', 'big twelve': 'Big 12',
+                'big east': 'Big East',
+                'aac': 'AAC', 'american athletic': 'AAC',
+                'mwc': 'MWC', 'mountain west': 'MWC',
+                'wcc': 'WCC', 'west coast': 'WCC',
+                'atlantic 10': 'A-10', 'a-10': 'A-10',
+                'mvc': 'MVC', 'missouri valley': 'MVC',
+                'ivy league': 'Ivy', 'ivy': 'Ivy',
+                'big sky': 'Big Sky',
+                'big west': 'Big West',
+                'socon': 'SoCon', 'southern conference': 'SoCon',
+                'caa': 'CAA', 'colonial': 'CAA',
+                'sun belt': 'Sun Belt',
+                'c-usa': 'C-USA', 'conference usa': 'C-USA',
+                'ovc': 'OVC', 'ohio valley': 'OVC',
+                'wac': 'WAC', 'western athletic': 'WAC',
+                'maac': 'MAAC', 'metro atlantic': 'MAAC',
+                'patriot league': 'Patriot', 'patriot': 'Patriot',
+                'big south': 'Big South',
+                'summit league': 'Summit', 'summit': 'Summit',
+                'nec': 'NEC', 'northeast conference': 'NEC',
+                'southland': 'Southland',
+                'swac': 'SWAC',
+                'meac': 'MEAC',
+                'america east': 'AEC', 'aec': 'AEC',
+                'a-sun': 'A-Sun', 'atlantic sun': 'A-Sun',
+                'mac': 'MAC', 'mid-american': 'MAC'
+            };
+            // Sort by length so longer phrases match first
+            const confEntries = Object.entries(confKeywords).sort((a, b) => b[0].length - a[0].length);
+            for (const [kw, conf] of confEntries) {
+                if (raw.includes(kw)) {
+                    filtered = filtered.filter(p => p.Conference && p.Conference.toLowerCase() === conf.toLowerCase());
+                    break;
+                }
+            }
+
+            // ── Position detection ────────────────────────────────────────────
+            if ((raw.includes('guard') || raw.includes('point guard') || raw.includes('combo guard')) && !raw.includes('forward')) {
+                filtered = filtered.filter(p => p.position_category === 'Guard');
+            } else if (raw.includes(' wing ') || raw.includes('small forward') || raw.includes('sf ')) {
+                filtered = filtered.filter(p => p.position_category === 'Wing');
+            } else if (raw.includes('forward') || raw.includes('center') || raw.includes('post') || raw.includes('big')) {
+                filtered = filtered.filter(p => p.position_category === 'Forward/Center');
+            }
+
+            // ── Archetype detection ───────────────────────────────────────────
+            let archetypeApplied = false;
+
+            if (raw.includes('shooter') || raw.includes('three point') || raw.includes('3-point') || raw.includes('sniper')) {
+                filtered = filtered.filter(p => (p['3P%'] || 0) >= 0.32 && (p['3PA/G'] || 0) >= 2.0);
+                filtered.sort((a, b) => {
+                    const aScore = (a['3P%'] || 0) * (a['3PA/G'] || 0);
+                    const bScore = (b['3P%'] || 0) * (b['3PA/G'] || 0);
+                    return bScore - aScore;
+                });
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied && (raw.includes('scorer') || raw.includes('scoring machine') || raw.includes('bucket getter') || raw.includes('bucket'))) {
+                filtered = filtered.filter(p => (p.PPG || 0) >= 10);
+                filtered.sort((a, b) => (b.PPG || 0) - (a.PPG || 0));
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied && (raw.includes('playmaker') || raw.includes('facilitator') || raw.includes('passer') || raw.includes('distributor'))) {
+                filtered = filtered.filter(p => (p.APG || 0) >= 3);
+                filtered.sort((a, b) => (b['A/TO'] || 0) - (a['A/TO'] || 0));
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied && (raw.includes('defender') || raw.includes('defensive') || raw.includes('stopper') || raw.includes('lockdown'))) {
+                filtered = filtered.filter(p => ((p.SPG || 0) + (p.BPG || 0)) >= 1.5);
+                filtered.sort((a, b) => ((b.SPG || 0) + (b.BPG || 0)) - ((a.SPG || 0) + (a.BPG || 0)));
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied && (raw.includes('rebounder') || raw.includes('rebounding') || raw.includes('glass cleaner') || raw.includes('boards'))) {
+                filtered = filtered.filter(p => (p.RPG || 0) >= 5);
+                filtered.sort((a, b) => (b.RPG || 0) - (a.RPG || 0));
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied && (raw.includes('two-way') || raw.includes('two way') || raw.includes('versatile'))) {
+                filtered = filtered.filter(p => (p.BPM || 0) >= 0);
+                filtered.sort((a, b) => (b.BPM || 0) - (a.BPM || 0));
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied && (raw.includes('efficient') || raw.includes('high percentage') || raw.includes('shooting efficiency'))) {
+                filtered = filtered.filter(p => (p['eFG%'] || 0) >= 0.50);
+                filtered.sort((a, b) => (b['eFG%'] || 0) - (a['eFG%'] || 0));
+                archetypeApplied = true;
+            }
+
+            if (!archetypeApplied) {
+                filtered.sort((a, b) => b.total_score - a.total_score);
+            }
+
+            // ── Budget / affordability filter ─────────────────────────────────
+            if (raw.includes('affordable') || raw.includes('cheap') || raw.includes('budget') || raw.includes('low cost') || raw.includes('low-cost') || raw.includes('inexpensive')) {
+                if (filtered.length > 0) {
+                    const sorted = [...filtered].sort((a, b) => a.valuation - b.valuation);
+                    const cutoff = sorted[Math.floor(sorted.length * 0.40)].valuation;
+                    filtered = filtered.filter(p => p.valuation <= cutoff);
+                }
+            }
+
+            if (raw.includes(' value ') || raw.includes('best value') || raw.includes('bargain') || raw.includes('undervalued')) {
+                filtered.sort((a, b) => {
+                    const aR = a.total_score / Math.max(a.valuation, 1);
+                    const bR = b.total_score / Math.max(b.valuation, 1);
+                    return bR - aR;
+                });
+            }
+
+            // ── Score threshold ───────────────────────────────────────────────
+            if (raw.includes('elite') || raw.includes('top tier') || raw.includes('star')) {
+                filtered = filtered.filter(p => p.total_score >= 80);
+            } else if (raw.includes('starter quality') || raw.includes('quality starter')) {
+                filtered = filtered.filter(p => p.total_score >= 65);
+            }
+
+            renderTable(filtered);
+            showSaveNotification(`Found ${filtered.length} player${filtered.length !== 1 ? 's' : ''} matching "${document.getElementById('archetypeSearch').value.trim()}"`);
+        }
 
         // Clear any old localStorage
         localStorage.removeItem('wbbEvalModel');
