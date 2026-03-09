@@ -1472,6 +1472,17 @@
                 console.log('First row column names:', jsonData.length > 0 ? Object.keys(jsonData[0]) : 'No data');
 
                 playerData = jsonData;
+                fileInfo.textContent = `✓ Loaded ${jsonData.length} players from Google Sheets — enriching conferences from ESPN...`;
+
+                await buildESPNConferenceMap();
+                playerData.forEach(player => {
+                    const existing = player.Conference || player.conference || player.CONFERENCE || player.Conf || '';
+                    if (!existing || existing === 'N/A') {
+                        const teamName = player.Team || player.team || player.TEAM || '';
+                        const espnConf = lookupConferenceFromESPN(teamName);
+                        if (espnConf) player.Conference = espnConf;
+                    }
+                });
                 fileInfo.textContent = `✓ Loaded ${jsonData.length} players from Google Sheets`;
 
                 calculateScores();
@@ -1479,6 +1490,58 @@
                 console.error('Error loading Google Sheet:', error);
                 fileInfo.textContent = `✗ Error: ${error.message}`;
             }
+        }
+
+        // ESPN conference lookup
+        let espnTeamConferenceMap = null;
+
+        async function buildESPNConferenceMap() {
+            if (espnTeamConferenceMap) return espnTeamConferenceMap;
+            try {
+                const resp = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams?limit=1000');
+                const data = await resp.json();
+                const map = {};
+                (data.sports?.[0]?.leagues?.[0]?.teams || []).forEach(entry => {
+                    const team = entry.team;
+                    const conf = team.conferenceId ? (data.sports?.[0]?.leagues?.[0]?.conferences?.find(c => c.id === team.conferenceId)?.name || '') : '';
+                    // Store by multiple name variants for fuzzy matching
+                    [team.displayName, team.shortDisplayName, team.name, team.nickname, team.abbreviation]
+                        .filter(Boolean)
+                        .forEach(n => { map[n.toLowerCase().trim()] = team.conferenceId; });
+                    team._confName = conf;
+                    team._names = [team.displayName, team.shortDisplayName, team.name, team.nickname, team.abbreviation].filter(Boolean);
+                });
+
+                // Build a cleaner map: normalized name → conference name
+                const confMap = {};
+                (data.sports?.[0]?.leagues?.[0]?.teams || []).forEach(entry => {
+                    const team = entry.team;
+                    const confObj = (data.sports?.[0]?.leagues?.[0]?.conferences || []).find(c => String(c.id) === String(team.conferenceId));
+                    const confName = confObj?.name || confObj?.shortName || '';
+                    [team.displayName, team.shortDisplayName, team.name, team.nickname]
+                        .filter(Boolean)
+                        .forEach(n => { confMap[n.toLowerCase().trim()] = confName; });
+                });
+
+                espnTeamConferenceMap = confMap;
+                console.log('ESPN conference map built:', Object.keys(confMap).length, 'entries');
+                return confMap;
+            } catch (e) {
+                console.warn('ESPN conference lookup failed:', e);
+                espnTeamConferenceMap = {};
+                return {};
+            }
+        }
+
+        function lookupConferenceFromESPN(teamName) {
+            if (!espnTeamConferenceMap || !teamName) return '';
+            const key = teamName.toLowerCase().trim();
+            if (espnTeamConferenceMap[key]) return espnTeamConferenceMap[key];
+            // Partial match fallback
+            for (const [k, v] of Object.entries(espnTeamConferenceMap)) {
+                if (k.includes(key) || key.includes(k)) return v;
+            }
+            return '';
         }
 
         function normalizePlayerName(name) {
