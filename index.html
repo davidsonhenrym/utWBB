@@ -987,6 +987,7 @@
                     <div class="tabs">
                         <button class="tab active" onclick="switchTab('players')">Player Rankings</button>
                         <button class="tab" onclick="switchTab('teams')">Team Valuations</button>
+                        <button class="tab" onclick="switchTab('prospect')">Prospect Board</button>
                     </div>
 
                     <div id="playersTab" class="tab-content active">
@@ -1063,7 +1064,209 @@
                         </div>
                         <div id="teamsContainer"></div>
                     </div>
+
+                    <!-- Prospect Board Tab -->
+                    <div id="prospectTab" class="tab-content">
+
+                        <!-- Login Overlay -->
+                        <div id="prospectLoginOverlay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:24px;">
+                            <div style="text-align:center;">
+                                <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:var(--accent-primary);margin-bottom:8px;">Restricted Access</div>
+                                <div style="font-size:1.8rem;font-weight:900;color:var(--text-primary);">Prospect Board</div>
+                                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;font-family:'IBM Plex Mono',monospace;">Coaches only — enter credentials to continue</div>
+                            </div>
+                            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:32px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:16px;">
+                                <div>
+                                    <label style="display:block;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:6px;">Your Name</label>
+                                    <input type="text" id="prospectName" placeholder="e.g. Coach Jones" style="width:100%;padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.9rem;outline:none;">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:6px;">Username</label>
+                                    <input type="text" id="prospectUser" placeholder="username" style="width:100%;padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.9rem;outline:none;">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-secondary);margin-bottom:6px;">Password</label>
+                                    <input type="password" id="prospectPass" placeholder="password" style="width:100%;padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.9rem;outline:none;" onkeydown="if(event.key==='Enter')prospectLogin()">
+                                </div>
+                                <div id="prospectLoginError" style="color:#ff4d4d;font-size:0.8rem;font-family:'IBM Plex Mono',monospace;display:none;">Invalid credentials or missing name.</div>
+                                <button onclick="prospectLogin()" style="padding:12px;background:var(--accent-primary);border:none;border-radius:6px;color:#000;font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Sign In</button>
+                            </div>
+                        </div>
+
+                        <!-- Board Content (hidden until logged in) -->
+                        <div id="prospectBoardContent" style="display:none;">
+
+                            <!-- Header -->
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+                                <div>
+                                    <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-primary);margin-bottom:4px;">Coaches Board</div>
+                                    <div style="font-size:1.4rem;font-weight:900;">Prospect Rankings</div>
+                                </div>
+                                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                                    <div id="pbCoachDisplay" style="font-size:0.8rem;font-family:'IBM Plex Mono',monospace;color:var(--text-secondary);"></div>
+                                    <div id="pbSyncStatus" style="font-size:0.75rem;font-family:'IBM Plex Mono',monospace;color:var(--text-secondary);"></div>
+                                    <button onclick="pbLoad()" title="Refresh" style="padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer;">&#8635; Refresh</button>
+                                    <button onclick="prospectLogout()" style="padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:0.8rem;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;">Sign Out</button>
+                                </div>
+                            </div>
+
+                            <!-- Add Player Form -->
+                            <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;">
+                                <!-- Mode Toggle -->
+                                <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content;">
+                                    <button id="pbModeBtn_search" onclick="pbSetMode('search')" style="padding:7px 18px;background:var(--accent-primary);border:none;color:#000;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Search Ranked List</button>
+                                    <button id="pbModeBtn_custom" onclick="pbSetMode('custom')" style="padding:7px 18px;background:transparent;border:none;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;">Custom Player</button>
+                                </div>
+
+                                <!-- Search from ranked list -->
+                                <div id="pbSearchSection">
+                                    <div style="position:relative;">
+                                        <input type="text" id="pbApiSearch" placeholder="Search by player name or school..." oninput="pbSearchApiPlayers()" autocomplete="off"
+                                            style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;box-sizing:border-box;">
+                                        <div id="pbApiResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;z-index:500;max-height:280px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4);"></div>
+                                    </div>
+                                    <div id="pbApiNoData" style="display:none;margin-top:10px;font-size:0.8rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;">No ranked list loaded — load your player data on the Rankings tab first.</div>
+                                    <!-- Confirm & add panel (shown after selecting a player) -->
+                                    <div id="pbApiAddPanel" style="display:none;margin-top:14px;padding:14px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;">
+                                        <div id="pbApiSelectedInfo" style="margin-bottom:12px;"></div>
+                                        <div style="display:grid;grid-template-columns:110px 1fr 160px auto;gap:10px;align-items:end;">
+                                            <div>
+                                                <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Board</label>
+                                                <select id="pbApiSection" style="width:100%;padding:9px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.82rem;outline:none;">
+                                                    <option value="guards">Guards</option>
+                                                    <option value="wings">Wings</option>
+                                                    <option value="bigs">Bigs</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Type</label>
+                                                <select id="pbApiType" style="width:100%;padding:9px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.82rem;outline:none;">
+                                                    <option value="Transfer Portal">Transfer Portal</option>
+                                                    <option value="JUCO">JUCO</option>
+                                                    <option value="High School">High School</option>
+                                                    <option value="Grad Transfer">Grad Transfer</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Offer / NIL</label>
+                                                <input type="text" id="pbApiPay" placeholder="e.g. $150,000" style="width:100%;padding:9px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;" onkeydown="if(event.key==='Enter')pbAddApiPlayer()">
+                                            </div>
+                                            <button onclick="pbAddApiPlayer()" style="padding:9px 20px;background:var(--accent-primary);border:none;border-radius:6px;color:#000;font-weight:700;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;white-space:nowrap;">+ Add</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Custom player entry -->
+                                <div id="pbCustomSection" style="display:none;">
+                                    <div style="display:grid;grid-template-columns:1fr 90px 130px 1fr 140px 110px auto;gap:12px;align-items:end;">
+                                        <div>
+                                            <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Player Name</label>
+                                            <input type="text" id="pbName" placeholder="e.g. Jane Smith" style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;">
+                                        </div>
+                                        <div>
+                                            <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Pos</label>
+                                            <input type="text" id="pbPosition" placeholder="PG, SF..." style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;">
+                                        </div>
+                                        <div>
+                                            <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Type</label>
+                                            <select id="pbType" style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.82rem;outline:none;">
+                                                <option value="Transfer Portal">Transfer Portal</option>
+                                                <option value="JUCO">JUCO</option>
+                                                <option value="High School">High School</option>
+                                                <option value="Grad Transfer">Grad Transfer</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">School / Program</label>
+                                            <input type="text" id="pbSchool" placeholder="e.g. Ohio State, Sinclair CC" style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;">
+                                        </div>
+                                        <div>
+                                            <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Offer / NIL</label>
+                                            <input type="text" id="pbPay" placeholder="e.g. $150,000" style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;" onkeydown="if(event.key==='Enter')addProspect()">
+                                        </div>
+                                        <div>
+                                            <label style="display:block;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:5px;">Board</label>
+                                            <select id="pbSection" style="width:100%;padding:9px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.82rem;outline:none;">
+                                                <option value="guards">Guards</option>
+                                                <option value="wings">Wings</option>
+                                                <option value="bigs">Bigs</option>
+                                            </select>
+                                        </div>
+                                        <button onclick="addProspect()" style="padding:9px 20px;background:var(--accent-primary);border:none;border-radius:6px;color:#000;font-weight:700;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;white-space:nowrap;">+ Add</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Search Bar -->
+                            <div style="margin-bottom:20px;">
+                                <input type="text" id="pbSearch" placeholder="&#128269; Search prospects by name, school, or position..." oninput="renderProspectBoard()" style="width:100%;padding:10px 14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Guards Section -->
+                            <div style="margin-bottom:20px;">
+                                <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                                    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+                                        <div>
+                                            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#00d4ff;">Guards</div>
+                                            <div style="font-size:0.7rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;margin-top:2px;">Targeting 2 — drag to rank</div>
+                                        </div>
+                                        <div id="guardsCount" style="font-size:0.75rem;font-family:'IBM Plex Mono',monospace;color:var(--text-secondary);">0 prospects</div>
+                                    </div>
+                                    <div id="guardsList" style="min-height:80px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Wings Section -->
+                            <div style="margin-bottom:20px;">
+                                <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                                    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+                                        <div>
+                                            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#ff6b35;">Wings</div>
+                                            <div style="font-size:0.7rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;margin-top:2px;">Drag to rank</div>
+                                        </div>
+                                        <div id="wingsCount" style="font-size:0.75rem;font-family:'IBM Plex Mono',monospace;color:var(--text-secondary);">0 prospects</div>
+                                    </div>
+                                    <div id="wingsList" style="min-height:80px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Bigs Section -->
+                            <div style="margin-bottom:20px;">
+                                <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+                                    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+                                        <div>
+                                            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#c084fc;">Bigs</div>
+                                            <div style="font-size:0.7rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;margin-top:2px;">Drag to rank</div>
+                                        </div>
+                                        <div id="bigsCount" style="font-size:0.75rem;font-family:'IBM Plex Mono',monospace;color:var(--text-secondary);">0 prospects</div>
+                                    </div>
+                                    <div id="bigsList" style="min-height:80px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /#prospectTab -->
+
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prospect Notes Modal -->
+    <div id="pbNotesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;align-items:center;justify-content:center;">
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;width:100%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;margin:20px;">
+            <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+                <div id="pbNotesTitle" style="font-weight:700;font-size:1rem;"></div>
+                <button onclick="closeProspectNotes()" style="background:transparent;border:none;color:var(--text-secondary);font-size:1.4rem;cursor:pointer;line-height:1;">&#10005;</button>
+            </div>
+            <div id="pbNotesThread" style="flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:0;"></div>
+            <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;">
+                <textarea id="pbNoteInput" placeholder="Add a note..." rows="2"
+                    style="flex:1;padding:10px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;resize:none;line-height:1.4;"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitProspectNote();}"></textarea>
+                <button onclick="submitProspectNote()" style="padding:10px 18px;background:var(--accent-primary);border:none;border-radius:6px;color:#000;font-weight:700;font-size:0.82rem;cursor:pointer;align-self:flex-end;">Post</button>
             </div>
         </div>
     </div>
@@ -1918,12 +2121,15 @@
             if (tab === 'players') {
                 document.querySelector('.tab:nth-child(1)').classList.add('active');
                 document.getElementById('playersTab').classList.add('active');
-            } else {
+            } else if (tab === 'teams') {
                 document.querySelector('.tab:nth-child(2)').classList.add('active');
                 document.getElementById('teamsTab').classList.add('active');
                 if (teamData && teamData.length > 0) {
                     renderTeams(teamData);
                 }
+            } else if (tab === 'prospect') {
+                document.querySelector('.tab:nth-child(3)').classList.add('active');
+                document.getElementById('prospectTab').classList.add('active');
             }
         }
 
@@ -2457,6 +2663,448 @@
 
         // Auto-load data from Google Sheets
         loadFromGoogleSheet();
+
+        // ── Prospect Board ────────────────────────────────────────────────────────
+
+        let pbLoggedIn = false;
+        let pbCoachName = '';
+        let pbFirebaseUrl = 'https://portal-database-e0a03-default-rtdb.firebaseio.com';
+        let pbBoard = { guards: [], wings: [], bigs: [] };
+        let pbDragSrc = null;
+        let pbDragSection = null;
+        let pbSyncInterval = null;
+        let pbOpenNotesId = null;
+
+        function escHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function pbFindPlayer(id) {
+            for (const sec of ['guards', 'wings', 'bigs']) {
+                const p = pbBoard[sec].find(p => p.id === id);
+                if (p) return { player: p, section: sec };
+            }
+            return null;
+        }
+
+        function prospectLogin() {
+            const user = document.getElementById('prospectUser').value.trim();
+            const pass = document.getElementById('prospectPass').value;
+            const name = document.getElementById('prospectName').value.trim();
+            if (user === 'utwbb' && pass === 'portal' && name) {
+                pbLoggedIn = true;
+                pbCoachName = name;
+                document.getElementById('prospectLoginOverlay').style.display = 'none';
+                document.getElementById('prospectBoardContent').style.display = 'block';
+                document.getElementById('pbCoachDisplay').textContent = 'Signed in as ' + name;
+                pbInitBoard();
+            } else {
+                document.getElementById('prospectLoginError').style.display = 'block';
+            }
+        }
+
+        function prospectLogout() {
+            pbLoggedIn = false;
+            pbCoachName = '';
+            if (pbSyncInterval) { clearInterval(pbSyncInterval); pbSyncInterval = null; }
+            document.getElementById('prospectLoginOverlay').style.display = 'flex';
+            document.getElementById('prospectBoardContent').style.display = 'none';
+            document.getElementById('prospectUser').value = '';
+            document.getElementById('prospectPass').value = '';
+            document.getElementById('prospectName').value = '';
+            document.getElementById('prospectLoginError').style.display = 'none';
+            closeProspectNotes();
+        }
+
+        function pbInitBoard() {
+            pbLoad();
+            pbSyncInterval = setInterval(pbLoad, 30000);
+        }
+
+        async function pbLoad() {
+            if (!pbFirebaseUrl) return;
+            try {
+                document.getElementById('pbSyncStatus').textContent = 'Syncing...';
+                const res = await fetch(pbFirebaseUrl + '/utwbb/board.json');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data && typeof data === 'object' && !Array.isArray(data)) {
+                    pbBoard = {
+                        guards: Array.isArray(data.guards) ? data.guards : [],
+                        wings:  Array.isArray(data.wings)  ? data.wings  : [],
+                        bigs:   Array.isArray(data.bigs)   ? data.bigs   : []
+                    };
+                } else {
+                    pbBoard = { guards: [], wings: [], fours: [] };
+                }
+                const t = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+                document.getElementById('pbSyncStatus').textContent = 'Synced ' + t;
+                if (pbOpenNotesId) {
+                    const found = pbFindPlayer(pbOpenNotesId);
+                    if (found) renderNotesThread(found.player);
+                }
+                renderProspectBoard();
+            } catch(e) {
+                document.getElementById('pbSyncStatus').textContent = 'Sync error: ' + e.message;
+                console.error('pbLoad error:', e);
+            }
+        }
+
+        async function pbSave() {
+            renderProspectBoard();
+            if (!pbFirebaseUrl) return;
+            try {
+                const res = await fetch(pbFirebaseUrl + '/utwbb/board.json', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pbBoard)
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const t = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+                document.getElementById('pbSyncStatus').textContent = 'Saved ' + t;
+            } catch(e) {
+                document.getElementById('pbSyncStatus').textContent = 'Save error — changes may not have synced';
+            }
+        }
+
+        function addProspect() {
+            const name    = document.getElementById('pbName').value.trim();
+            const pos     = document.getElementById('pbPosition').value.trim();
+            const type    = document.getElementById('pbType').value;
+            const school  = document.getElementById('pbSchool').value.trim();
+            const pay     = document.getElementById('pbPay').value.trim();
+            const section = document.getElementById('pbSection').value;
+            if (!name) { document.getElementById('pbName').focus(); return; }
+            pbBoard[section].push({ id: Date.now(), name, pos, type, school, pay, notes: [] });
+            pbSave();
+            document.getElementById('pbName').value = '';
+            document.getElementById('pbPosition').value = '';
+            document.getElementById('pbSchool').value = '';
+            document.getElementById('pbPay').value = '';
+        }
+
+        function removeProspect(id) {
+            if (!confirm('Remove this prospect from the board?')) return;
+            for (const sec of ['guards', 'wings', 'bigs']) {
+                pbBoard[sec] = pbBoard[sec].filter(p => p.id !== id);
+            }
+            pbSave();
+        }
+
+        function updateProspectPay(id, val) {
+            const found = pbFindPlayer(id);
+            if (found) { found.player.pay = val; pbSave(); }
+        }
+
+        function openProspectNotes(id) {
+            pbOpenNotesId = id;
+            const found = pbFindPlayer(id);
+            if (!found) return;
+            document.getElementById('pbNotesTitle').textContent = found.player.name + ' — Notes';
+            renderNotesThread(found.player);
+            document.getElementById('pbNotesModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('pbNoteInput').focus(), 100);
+        }
+
+        function closeProspectNotes() {
+            document.getElementById('pbNotesModal').style.display = 'none';
+            pbOpenNotesId = null;
+            document.getElementById('pbNoteInput').value = '';
+        }
+
+        function renderNotesThread(p) {
+            const notes = Array.isArray(p.notes) ? p.notes : [];
+            const thread = document.getElementById('pbNotesThread');
+            if (notes.length === 0) {
+                thread.innerHTML = '<div style="color:var(--text-secondary);font-family:\'IBM Plex Mono\',monospace;font-size:0.82rem;text-align:center;padding:30px 0;">No notes yet. Add the first one below.</div>';
+                return;
+            }
+            thread.innerHTML = notes.map(n => `
+                <div style="background:var(--bg-tertiary);border-radius:8px;padding:12px 14px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:10px;">
+                        <span style="font-size:0.78rem;font-weight:700;color:var(--accent-primary);white-space:nowrap;">${escHtml(n.coach)}</span>
+                        <span style="font-size:0.7rem;font-family:'IBM Plex Mono',monospace;color:var(--text-secondary);white-space:nowrap;">${new Date(n.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' + new Date(n.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+                    </div>
+                    <div style="font-size:0.88rem;line-height:1.55;white-space:pre-wrap;color:var(--text-primary);">${escHtml(n.text)}</div>
+                </div>
+            `).join('');
+            thread.scrollTop = thread.scrollHeight;
+        }
+
+        function submitProspectNote() {
+            const text = document.getElementById('pbNoteInput').value.trim();
+            if (!text || !pbOpenNotesId) return;
+            const found = pbFindPlayer(pbOpenNotesId);
+            if (!found) return;
+            if (!Array.isArray(found.player.notes)) found.player.notes = [];
+            found.player.notes.push({ coach: pbCoachName, text, ts: Date.now() });
+            pbSave();
+            renderNotesThread(found.player);
+            document.getElementById('pbNoteInput').value = '';
+        }
+
+        function renderProspectBoard() {
+            const search = (document.getElementById('pbSearch') || {value:''}).value.toLowerCase().trim();
+
+            const typeColors = {
+                'Transfer Portal': '#00d4ff',
+                'JUCO':            '#ff6b35',
+                'High School':     '#00ff88',
+                'Grad Transfer':   '#c084fc',
+                'Other':           '#8b92a8'
+            };
+
+            function renderSection(sectionKey, listId, countId, sectionColor) {
+                const list    = document.getElementById(listId);
+                const countEl = document.getElementById(countId);
+                if (!list) return;
+
+                const players  = pbBoard[sectionKey] || [];
+                const filtered = search
+                    ? players.filter(p =>
+                        (p.name   || '').toLowerCase().includes(search) ||
+                        (p.school || '').toLowerCase().includes(search) ||
+                        (p.pos    || '').toLowerCase().includes(search))
+                    : players;
+
+                countEl.textContent = players.length + ' prospect' + (players.length !== 1 ? 's' : '');
+
+                if (filtered.length === 0) {
+                    const msg = search
+                        ? 'No prospects match your search.'
+                        : 'No prospects yet — add one using the form above.';
+                    list.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-secondary);font-family:\'IBM Plex Mono\',monospace;font-size:0.82rem;">' + msg + '</div>';
+                    return;
+                }
+
+                list.innerHTML = filtered.map(p => {
+                    const realIdx   = players.indexOf(p);
+                    const noteCount = Array.isArray(p.notes) ? p.notes.length : 0;
+                    const tColor    = typeColors[p.type] || 'var(--text-secondary)';
+                    const hasNotes  = noteCount > 0;
+                    return `
+                    <div class="pb-row" draggable="${!search}" data-id="${p.id}" data-idx="${realIdx}" data-section="${sectionKey}"
+                         style="display:grid;grid-template-columns:36px 34px 1fr 130px 155px 110px 36px;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--border);background:var(--bg-secondary);transition:background 0.15s;">
+                        <div class="pb-drag-handle" style="color:var(--text-secondary);font-size:1.1rem;cursor:${search?'default':'grab'};text-align:center;user-select:none;opacity:${search?'0.3':'1'};" title="${search?'Clear search to reorder':'Drag to reorder'}">&#8661;</div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.82rem;font-weight:700;color:${sectionColor};text-align:center;">#${realIdx+1}</div>
+                        <div>
+                            <div style="display:flex;align-items:center;gap:7px;">
+                                <div style="font-weight:700;font-size:0.95rem;cursor:pointer;" onmouseover="this.style.color='var(--accent-secondary)'" onmouseout="this.style.color=''" onclick="pbShowPlayerStats(${p.id}, event)">${escHtml(p.name)}</div>
+                            </div>
+                            <div style="font-size:0.75rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;margin-top:2px;">
+                                ${p.pos ? '<span style="color:var(--accent-secondary);">' + escHtml(p.pos) + '</span>' + (p.school ? ' · ' : '') : ''}${escHtml(p.school)}
+                                ${p.type ? ' · <span style="color:' + tColor + ';">' + escHtml(p.type) + '</span>' : ''}
+                            </div>
+                        </div>
+                        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${tColor};">${escHtml(p.type) || '—'}</div>
+                        <div>
+                            <input type="text" value="${escHtml(p.pay)}" placeholder="Offer / NIL"
+                                onchange="updateProspectPay(${p.id}, this.value)"
+                                style="width:100%;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:5px;color:var(--accent-primary);font-family:'IBM Plex Mono',monospace;font-size:0.82rem;outline:none;font-weight:600;">
+                        </div>
+                        <button onclick="openProspectNotes(${p.id})"
+                            style="padding:5px 10px;background:${hasNotes?'rgba(0,255,136,0.08)':'var(--bg-tertiary)'};border:1px solid ${hasNotes?'var(--accent-primary)':'var(--border)'};border-radius:5px;color:${hasNotes?'var(--accent-primary)':'var(--text-secondary)'};font-size:0.75rem;font-family:'IBM Plex Mono',monospace;cursor:pointer;white-space:nowrap;text-align:center;">
+                            ${hasNotes ? noteCount + ' note' + (noteCount!==1?'s':'') : '+ Note'}
+                        </button>
+                        <button onclick="removeProspect(${p.id})" title="Remove"
+                            style="background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);font-size:0.9rem;cursor:pointer;padding:4px 8px;line-height:1;">&#10005;</button>
+                    </div>`;
+                }).join('');
+
+                if (!search) {
+                    list.querySelectorAll('.pb-row').forEach(row => {
+                        row.addEventListener('dragstart', e => {
+                            pbDragSrc = row;
+                            pbDragSection = sectionKey;
+                            e.dataTransfer.effectAllowed = 'move';
+                            setTimeout(() => { row.style.opacity = '0.4'; }, 0);
+                        });
+                        row.addEventListener('dragend', () => {
+                            row.style.opacity = '';
+                            list.querySelectorAll('.pb-row').forEach(r => r.style.background = '');
+                        });
+                        row.addEventListener('dragover', e => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            if (row !== pbDragSrc) row.style.background = 'rgba(0,255,136,0.06)';
+                        });
+                        row.addEventListener('dragleave', () => { row.style.background = ''; });
+                        row.addEventListener('drop', e => {
+                            e.preventDefault();
+                            if (pbDragSrc && pbDragSrc !== row && pbDragSection === sectionKey) {
+                                const fromIdx = parseInt(pbDragSrc.dataset.idx);
+                                const toIdx   = parseInt(row.dataset.idx);
+                                const moved = pbBoard[sectionKey].splice(fromIdx, 1)[0];
+                                pbBoard[sectionKey].splice(toIdx, 0, moved);
+                                pbSave();
+                            }
+                        });
+                    });
+                }
+            }
+
+            renderSection('guards', 'guardsList', 'guardsCount', '#00d4ff');
+            renderSection('wings',  'wingsList',  'wingsCount',  '#ff6b35');
+            renderSection('bigs',   'bigsList',   'bigsCount',   '#c084fc');
+        }
+
+        document.getElementById('pbNotesModal').addEventListener('click', function(e) {
+            if (e.target === this) closeProspectNotes();
+        });
+
+        // --- Add from ranked list ---
+        let pbApiSelectedPlayer = null;
+
+        function pbSetMode(mode) {
+            const isSearch = mode === 'search';
+            document.getElementById('pbSearchSection').style.display = isSearch ? '' : 'none';
+            document.getElementById('pbCustomSection').style.display = isSearch ? 'none' : '';
+            document.getElementById('pbModeBtn_search').style.background = isSearch ? 'var(--accent-primary)' : 'transparent';
+            document.getElementById('pbModeBtn_search').style.color = isSearch ? '#000' : 'var(--text-secondary)';
+            document.getElementById('pbModeBtn_custom').style.background = isSearch ? 'transparent' : 'var(--accent-primary)';
+            document.getElementById('pbModeBtn_custom').style.color = isSearch ? 'var(--text-secondary)' : '#000';
+        }
+
+        function pbSearchApiPlayers() {
+            const q = document.getElementById('pbApiSearch').value.trim().toLowerCase();
+            const resultsEl = document.getElementById('pbApiResults');
+            const noDataEl = document.getElementById('pbApiNoData');
+            const source = (typeof scoredData !== 'undefined' && scoredData.length > 0) ? scoredData : playerData;
+
+            if (!source || source.length === 0) {
+                noDataEl.style.display = '';
+                resultsEl.style.display = 'none';
+                return;
+            }
+            noDataEl.style.display = 'none';
+
+            if (!q) { resultsEl.style.display = 'none'; return; }
+
+            const matches = source.filter(p => {
+                const name = (p.Player || '').toLowerCase();
+                const team = (p.Team || '').toLowerCase();
+                return name.includes(q) || team.includes(q);
+            }).slice(0, 10);
+
+            if (matches.length === 0) {
+                resultsEl.innerHTML = '<div style="padding:12px 14px;color:var(--text-secondary);font-family:\'IBM Plex Mono\',monospace;font-size:0.82rem;">No players found.</div>';
+                resultsEl.style.display = '';
+                return;
+            }
+
+            resultsEl.innerHTML = matches.map((p, i) => {
+                const score = p.total_score ? parseFloat(p.total_score).toFixed(1) : null;
+                const pos = p.Pos || p.position_category || '';
+                const cls = p.Class || p.Yr || '';
+                return `<div onclick="pbSelectApiPlayer(${i})"
+                    style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;"
+                    onmouseover="this.style.background='rgba(0,255,136,0.06)'" onmouseout="this.style.background=''">
+                    <div>
+                        <span style="font-weight:700;font-size:0.88rem;color:var(--text-primary);">${escHtml(p.Player)}</span>
+                        <span style="font-size:0.75rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;margin-left:8px;">${escHtml(p.Team || '')}${cls ? ' · ' + escHtml(cls) : ''}</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+                        ${pos ? '<span style="font-size:0.72rem;font-weight:700;color:var(--accent-secondary);">' + escHtml(pos) + '</span>' : ''}
+                        ${score ? '<span style="font-size:0.75rem;font-family:\'IBM Plex Mono\',monospace;color:var(--accent-primary);">' + score + '</span>' : ''}
+                    </div>
+                </div>`;
+            }).join('');
+
+            resultsEl._pbMatches = matches;
+            resultsEl.style.display = '';
+        }
+
+        function pbSelectApiPlayer(idx) {
+            const resultsEl = document.getElementById('pbApiResults');
+            const matches = resultsEl._pbMatches || [];
+            const p = matches[idx];
+            if (!p) return;
+
+            pbApiSelectedPlayer = p;
+            resultsEl.style.display = 'none';
+            document.getElementById('pbApiSearch').value = p.Player + (p.Team ? ' — ' + p.Team : '');
+
+            const posMap = { 'Guard': 'guards', 'Wing': 'wings', 'Forward': 'bigs' };
+            const section = posMap[p.position_category] || 'guards';
+            document.getElementById('pbApiSection').value = section;
+
+            const pos = p.Pos || p.position_category || '';
+            const score = p.total_score ? parseFloat(p.total_score).toFixed(1) : null;
+            document.getElementById('pbApiSelectedInfo').innerHTML =
+                `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span style="font-weight:700;font-size:0.95rem;color:var(--text-primary);">${escHtml(p.Player)}</span>
+                    <span style="font-size:0.8rem;color:var(--text-secondary);font-family:'IBM Plex Mono',monospace;">${escHtml(p.Team || '')}</span>
+                    ${pos ? '<span style="font-size:0.75rem;font-weight:700;color:var(--accent-secondary);">' + escHtml(pos) + '</span>' : ''}
+                    ${score ? '<span style="font-size:0.78rem;font-family:\'IBM Plex Mono\',monospace;color:var(--accent-primary);">Score: ' + score + '</span>' : ''}
+                    <button onclick="pbClearApiSelection()" style="padding:2px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:0.72rem;cursor:pointer;">&#10005; Clear</button>
+                </div>`;
+            document.getElementById('pbApiAddPanel').style.display = '';
+            document.getElementById('pbApiPay').focus();
+        }
+
+        function pbClearApiSelection() {
+            pbApiSelectedPlayer = null;
+            document.getElementById('pbApiSearch').value = '';
+            document.getElementById('pbApiAddPanel').style.display = 'none';
+            document.getElementById('pbApiResults').style.display = 'none';
+            document.getElementById('pbApiSearch').focus();
+        }
+
+        function pbAddApiPlayer() {
+            if (!pbApiSelectedPlayer) return;
+            const p = pbApiSelectedPlayer;
+            const section = document.getElementById('pbApiSection').value;
+            const type = document.getElementById('pbApiType').value;
+            const pay = document.getElementById('pbApiPay').value.trim();
+            const pos = p.Pos || p.position_category || '';
+            pbBoard[section].push({ id: Date.now(), name: p.Player || '', pos, type, school: p.Team || '', pay, notes: [] });
+            pbSave();
+            pbClearApiSelection();
+            document.getElementById('pbApiPay').value = '';
+        }
+
+        document.addEventListener('click', function(e) {
+            const inp = document.getElementById('pbApiSearch');
+            const res = document.getElementById('pbApiResults');
+            if (res && inp && !inp.contains(e.target) && !res.contains(e.target)) {
+                res.style.display = 'none';
+            }
+        });
+
+        function pbShowPlayerStats(prospectId, event) {
+            if (event) event.stopPropagation();
+            let prospect = null;
+            for (const sec of ['guards', 'wings', 'bigs']) {
+                prospect = pbBoard[sec].find(p => p.id === prospectId);
+                if (prospect) break;
+            }
+            if (!prospect) return;
+            const found = scoredData.find(p => p.Player && p.Player.toLowerCase() === (prospect.name || '').toLowerCase());
+            if (found) {
+                showPlayerDetails(found);
+            } else {
+                document.getElementById('modalPlayerName').textContent = prospect.name || '—';
+                document.getElementById('modalPlayerInfo').innerHTML = `
+                    <span>${escHtml(prospect.school || 'Unknown School')}</span>
+                    <span>${escHtml(prospect.pos || '')}${prospect.type ? ' · ' + escHtml(prospect.type) : ''}</span>
+                `;
+                document.getElementById('modalScoreSummary').innerHTML = `
+                    <div class="modal-score-card">
+                        <div class="modal-score-label">Type</div>
+                        <div class="modal-score-value" style="font-size:1.4rem;">${escHtml(prospect.type) || '—'}</div>
+                    </div>
+                    <div class="modal-score-card">
+                        <div class="modal-score-label">Offer / NIL</div>
+                        <div class="modal-score-value" style="font-size:1.4rem;">${escHtml(prospect.pay) || '—'}</div>
+                    </div>
+                `;
+                document.getElementById('modalStatBreakdown').innerHTML = '<div style="padding:20px 0;color:var(--text-secondary);font-family:\'IBM Plex Mono\',monospace;font-size:0.82rem;">This player is not in the ranked list — no stat data available.</div>';
+                document.getElementById('playerModal').classList.add('active');
+            }
+        }
+
+        // ── End Prospect Board ────────────────────────────────────────────────────
     </script>
 </body>
 </html>
